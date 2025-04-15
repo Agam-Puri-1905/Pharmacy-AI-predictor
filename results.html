@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prediction Results</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.16.0/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table, th, td {
+            border: 1px solid black;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            margin-top: 20px;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+
+        .watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            opacity: 0.1;
+            z-index: -1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Prediction Results</h2>
+
+        <!-- Watermark Image -->
+    <img src="Picsart_24-03-25_11-33-12-790.png" class="watermark" width="400">
+
+        <table id="resultsTable">
+            <thead>
+                <tr>
+                    <th>Institute Name</th>
+                    <th>Branch Name</th>
+                    <th>Seat Type</th>
+                    <th>Minimum Rank</th>
+                    <th>Percentile</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Results will be inserted here dynamically -->
+            </tbody>
+        </table>
+        <button onclick="downloadPDF()">Download PDF</button>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const results = JSON.parse(localStorage.getItem("results"));
+
+            if (!results || results.length === 0) {
+                document.querySelector("h2").innerText = "No results found.";
+                return;
+            }
+
+            const resultsTable = document.getElementById("resultsTable").getElementsByTagName("tbody")[0];
+            // Populate the table with results
+            results.forEach(college => {
+                const row = resultsTable.insertRow();
+                row.innerHTML = `
+                    <td>${college["Institute Name"] || 'Not Available'}</td>
+                    <td>${college["Branch Name"] || 'Not Available'}</td>
+                    <td>${college["Seat Type"] || 'Not Available'}</td>
+                    <td>${college["All India State Rank"] || 'Not Available'}</td>
+                    <td>${college["JEE Mains Percentile"] || 'Not Available'}</td>
+                `;
+        
+            });
+        });
+
+        // Function to download the results as a PDF
+        async function downloadPDF() {
+            try {
+                const pdfResponse = await fetch("JEE Mains College Predictor PDF.pdf");
+                if (!pdfResponse.ok) throw new Error("PDF template file not found");
+
+                const existingPdfBytes = await pdfResponse.arrayBuffer();
+                const pdfDoc = await PDFLib.PDFDocument.load(existingPdfBytes);
+
+                const pageCount = pdfDoc.getPageCount();
+                const pageIndicesToKeep = [0, pageCount - 1];
+                const pagesToRemove = Array.from({ length: pageCount }, (_, i) => i)
+                    .filter(i => !pageIndicesToKeep.includes(i));
+                pagesToRemove.reverse().forEach(index => pdfDoc.removePage(index));
+
+                const entriesPerPage = 15;
+                const rows = Array.from(document.querySelectorAll("#resultsTable tbody tr")).map(row =>
+                    Array.from(row.querySelectorAll("td")).map(td => td.innerText)
+                );
+                
+                if (rows.length === 0) {
+                    alert("No data available to generate PDF.");
+                    return;
+                }
+                
+                const { jsPDF } = window.jspdf;
+                const outputPages = [];
+                for (let i = 0; i < rows.length; i += entriesPerPage) {
+                    const tempDoc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+                    tempDoc.setFontSize(14);
+                    tempDoc.text("College Prediction Results", 40, 50);
+                    
+                    tempDoc.autoTable({
+                        startY: 80,
+                        head: [["Institute", "Branch", "Seat Type", "Minimum Rank", "Percentile"]],
+                        body: rows.slice(i, i + entriesPerPage),
+                        theme: "grid",
+                        margin: { left: 40, right: 40 }
+                    });
+                    
+                    const pdfBytes = await tempDoc.output("arraybuffer");
+                    const newPdf = await PDFLib.PDFDocument.load(pdfBytes);
+                    const [insertedPage] = await pdfDoc.copyPages(newPdf, [0]);
+                    outputPages.push(insertedPage);
+                }
+                
+                outputPages.forEach((page, index) => pdfDoc.insertPage(1 + index, page));
+                
+                const finalPdfBytes = await pdfDoc.save();
+                const blob = new Blob([finalPdfBytes], { type: "application/pdf" });
+                const link = document.createElement("a");
+                link.href = URL.createObjectURL(blob);
+                link.download = "ALL_INDIA_College_Predictor.pdf";
+                link.click();
+            } catch (error) {
+                alert("Failed to generate PDF: " + error.message);
+                console.error(error);
+            }
+        }
+    </script>
+</body>
+</html>

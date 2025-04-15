@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>All India College Predictor</title>
+    <style>
+        /* General Styles */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 20px;
+            background-color: #f9f9f9;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: auto;
+            padding: 20px;
+        }
+
+        h2 {
+            text-align: center;
+            color: #333;
+        }
+
+        select, input, button {
+            display: block;
+            width: 100%;
+            margin: 10px 0;
+            padding: 12px;
+            font-size: 16px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            box-sizing: border-box;
+        }
+
+        button {
+            background-color: #007BFF;
+            color: white;
+            width: max-content;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin-left: 50%;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        /* Basic Radio Button Styles */
+        .radio-group {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-top: 15px;
+        }
+
+        .radio-group label {
+            font-size: 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center; /* Ensures radio button is aligned with the label */
+        }
+
+        .radio-group input[type="radio"] {
+            width: 20px; /* Standard size */
+            height: 20px; /* Standard size */
+            margin-right: 8px; /* Space between radio button and label */
+        }
+
+        /* Styling for Select Dropdown */
+        select {
+            background-color: #fff;
+            color: #333;
+            border: 1px solid #ddd;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            padding: 12px;
+            font-size: 16px;
+            border-radius: 5px;
+        }
+
+        /* Custom Dropdown Arrow */
+        select::-ms-expand {
+            display: none;
+        }
+
+        .select-container {
+            position: relative;
+        }
+
+        .select-container::after {
+            content: '▼'; /* Custom arrow */
+            font-size: 16px;
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #333;
+            pointer-events: none;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 600px) {
+            .container {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>All India College Predictor</h2>
+
+        <label for="exam">Select Exam:</label>
+        <div class="select-container">
+            <select id="exam">
+                <option value="" disabled selected>Select Exam</option>
+        
+                <option value="NEET-2025">NEET-2025</option>
+                <option value="MHT-CET">MHT-CET</option>
+            </select>
+        </div>
+
+        <label>Prediction Method:</label>
+        <div class="radio-group">
+            <label>
+                <input type="radio" name="method" value="Percentile" checked> Exam Percentile
+            </label>
+            <label>
+                <input type="radio" name="method" value="Rank"> All India Merit Rank
+            </label>
+        </div>
+
+        <label for="score">Enter your Score:</label>
+        <input type="text" id="score" placeholder="Enter percentile or rank">
+
+        <label for="branch">Select Branch:</label>
+        <select id="branch">
+            <option value="All Branches">All Branches</option>
+        </select>
+        
+        <button onclick="predictCollege()">Submit</button>
+    </div>
+
+    <script>
+        let data = null;
+        
+        async function loadData() {
+            try {
+                const response = await fetch('MHT-CET All India JEE Mains Cutoff.json');
+                data = await response.json();
+                console.log("Data Loaded Successfully", data);
+                populateBranches();
+            } catch (error) {
+                console.error("Error loading JSON file", error);
+            }
+        }
+
+        function populateBranches() {
+            const dataset = data["Cleaned_MHT-CET_Cutoff_Data (1)"] || [];
+            const branchSelect = document.getElementById("branch");
+            const branches = new Set();
+            
+            dataset.forEach(college => {
+                branches.add(college["Branch Name"].trim());
+            });
+            
+            branches.forEach(branch => {
+                const option = document.createElement("option");
+                option.value = branch;
+                option.textContent = branch;
+                branchSelect.appendChild(option);
+            });
+        }
+
+        function predictCollege() {
+    if (!data) {
+        alert("Data not loaded yet. Please try again.");
+        return;
+    }
+
+    const exam = document.getElementById("exam").value;
+    const method = document.querySelector('input[name="method"]:checked').value;
+    const scoreInput = document.getElementById("score").value;
+    const branch = document.getElementById("branch").value;
+
+    if (!scoreInput) {
+        alert("Please enter a valid score.");
+        return;
+    }
+
+    const score = parseFloat(scoreInput);
+    if (isNaN(score)) {
+        alert("Invalid input. Please enter a valid number.");
+        return;
+    }
+
+    let filteredData = data["Cleaned_MHT-CET_Cutoff_Data (1)"].filter(college => college["Merit Exam"] === exam);
+
+    if (method === "Percentile") {
+        filteredData = filteredData.filter(college => parseFloat(college["JEE Mains Percentile"]) <= score);
+    } else {
+        filteredData = filteredData.filter(college => parseInt(college["All India State Rank"]) >= score);
+    }
+
+    if (branch !== "All Branches") {
+        filteredData = filteredData.filter(college => college["Branch Name"].trim() === branch);
+    }
+
+    filteredData = filteredData.slice(0, 25);
+
+    if (filteredData.length === 0) {
+        alert("No matching colleges found.");
+        return;
+    }
+
+    // Store filtered data in localStorage
+    localStorage.setItem("results", JSON.stringify(filteredData));
+
+    // Redirect to results page
+    window.location.href = "results.html";
+}
+
+        loadData();
+    </script>
+</body>
+</html>
